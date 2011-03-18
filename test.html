@@ -6,10 +6,12 @@
         <p>This page is an example of loading the embedly lib asyncronously.  
         The only output is to the console.</p>
 
+        <div id="holder"></div>
+
         <script type="text/javascript">
           (function() {
             window.embedlyOnLoad = function() {
-              var api = new embedly.Api()
+              var api = new embedly.Api({debug: false})
               api.call(
                   'oembed'
                 , {urls: [
@@ -21,7 +23,64 @@
                       , 'http://zynga.com'
                       ]
                   }
-                , function(objs) {
+                , function(objs, urls) {
+                    if (objs[0].url != 'http://www.youtube.com/watch?v=ZNw46j0nNOs') {
+                      console.error('objs[0] is '+objs[0].url)
+                    }
+                    if (objs[1].url != 'http://www.youtube.com/watch?v=cgnhxfzOK4Y') {
+                      console.error('objs[1] is '+objs[1].url)
+                    }
+                    if (objs[2].url != 'http://www.youtube.com') {
+                      console.error('objs[2] is '+objs[2].url)
+                    }
+                    if (objs[3].url != 'http://www.google.com') {
+                      console.error('objs[3] is '+objs[3].url)
+                    }
+                    if (objs[4].url != 'http://www.youtube.com/watch?v=dBi7zwjp20E') {
+                      console.error('objs[4] is '+objs[4].url)
+                    }
+                    if (objs[5].url != 'http://zynga.com') {
+                      console.error('objs[5] is '+objs[5].url)
+                    }
+                    console.log(urls)
+                    console.log(objs)
+                  }
+                , function(params) {
+                    console.error(params)
+                  }
+              );
+              api.call(
+                  'oembed'
+                , {urls: [
+                        'http://www.youtube.com/watch?v=ZNw46j0nNOs&feature=fvwrel'
+                      , 'http://www.youtube.com/watch?v=cgnhxfzOK4Y&feature=rec-LGOUT-exp_stronger_r2-2r-29-HM'
+                      , 'http://www.youtube.com'
+                      , 'http://www.google.com'
+                      , 'http://zynga.com'
+                      , 'http://www.youtube.com/watch?v=dBi7zwjp20E&feature=feedf'
+                      ]
+                  }
+                , function(objs, urls) {
+                    if (objs[0].url != 'http://www.youtube.com/watch?v=ZNw46j0nNOs') {
+                      console.error('objs[0] is '+objs[0].url+' should be http://www.youtube.com/watch?v=ZNw46j0nNOs')
+                    }
+                    if (objs[1].url != 'http://www.youtube.com/watch?v=cgnhxfzOK4Y') {
+                      console.error('objs[1] is '+objs[1].url+' should be http://www.youtube.com/watch?v=cgnhxfzOK4Y')
+                    }
+                    if (objs[2].url != 'http://www.youtube.com') {
+                      console.error('objs[2] is '+objs[2].url+' should be http://www.youtube.com')
+                    }
+                    if (objs[3].url != 'http://www.google.com') {
+                      console.error('objs[3] is '+objs[3].url+' should be http://www.google.com')
+                    }
+                    if (objs[4].url != 'http://zynga.com') {
+                      console.error('objs[4] is '+objs[4].url+' should be http://www.zynga.com')
+                    }
+                    if (objs[5].url != 'http://www.youtube.com/watch?v=dBi7zwjp20E') {
+                      console.error('objs[5] is '+objs[5].url+' should be http://www.youtube.com/watch?v=dBi7zwjp20E')
+                    }
+
+                    console.log(urls)
                     console.log(objs)
                   }
                 , function(params) {

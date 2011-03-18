@@ -11,7 +11,7 @@ goog.require('goog.net.Jsonp')
  *       key:     The Embedly Pro api key.  If this is set then we will use
  *                http://pro.embed.ly as the default host.
  *
- *       host:    The Embedly api host.  This is http://pro.embed.ly by 
+ *       host:    The Embedly api host.  This is http://pro.embed.ly by
  *                default if 'key' is set, or http://api.embed.ly otherwise
  *
  *       timeout: Timeout in milis on calls. Default is 120000 (120 seconds)
@@ -26,12 +26,19 @@ embedly.Api = function(args) {
   } else {
     this.host = args['host'] || 'http://api.embed.ly'
   }
-  this.paths = {
-      'oembed': '/1/oembed'
+  this.paths =
+    { 'oembed': '/1/oembed'
     , 'objectify': '/2/objectify'
     , 'preview': '/1/preview'
-  }
+    }
   this.timeout = args['timeout'] || 120000
+  this.debug = args['debug'] || false
+}
+
+embedly.Api.prototype.log = function(msg) {
+  if (this.debug) {
+    console.log(msg)
+  }
 }
 
 /**
@@ -41,22 +48,25 @@ embedly.Api = function(args) {
  *     automatically be add to the params.  'urls' is required and should
  *     be an array of at least one url.
  *
- * @param {Function=} resultCallback Callback function expecting one argument 
+ * @param {Function=} resultCallback Callback function expecting one argument
  *     that is passed resulting object returned from the endpoint.  The result
  *     is an array of Objects in that match up to the params.urls in the same
  *     order that they were given.
  *
  * @param {Function=} opt_errorCallback Callback function expecting one
  *     argument.  Usually this is called on a timeout error.
- * 
- */ 
-embedly.Api.prototype.services = function(params, resultCallback, opt_errorCallback) {
-  var jsonp = new goog.net.Jsonp('http://api.embed.ly/1/oembed')
-  jsonp.setRequestTimeout(120000)
+ *
+ */
+embedly.Api.prototype.services = function(resultCallback, opt_errorCallback) {
+  var jsonp = new goog.net.Jsonp(this.host+'/1/services/javascript')
+    , self = this
+
+  jsonp.setRequestTimeout(this.timeout)
   jsonp.send(
-    params
+    {}
   , function(objs) {resultCallback(objs)}
   , function(payload) {
+      self.log("error getting services")
       if (opt_errorCallback) {
         opt_errorCallback(payload)
       }
@@ -67,25 +77,27 @@ embedly.Api.prototype.services = function(params, resultCallback, opt_errorCallb
 /**
  * Generate a giant regex of supported service providers
  * from  api.embed.ly's services endpoint response
- * @param {Function=} resultCallback Callback function expecting one argument 
+ * @param {Function=} resultCallback Callback function expecting one argument
  *     that is passed resulting object returned from the endpoint.  The result
  *     is an giant regex of all the supported services providers
  *
  * @param {Function=} opt_errorCallback Callback function expecting one
  *     argument.  Usually this is called on a timeout error.
- */ 
+ */
 embedly.Api.prototype.services_regex = function(resultCallback, opt_errorCallback) {
-  var jsonp_service = new goog.net.Jsonp('http://api.embed.ly/1/services/javascript')
-  jsonp_service.setRequestTimeout(12000)
-  jsonp_service.send({}, function(objs) {
-  services = new Array()
-  for (obj in objs) 
-    services = services.concat(objs[obj]['regex']); 
-  services_regexes = services.join('|')
-  resultCallback(services_regexes);
+  var self = this
+  self.services(function(services_resp) {
+    regexes = new Array()
+    services_resp.forEach(function(service) {
+      service['regex'].forEach(function(r) {
+        regexes.push(r)
+      })
+    })
+    regex = regexes.join('|')
+    resultCallback(regex)
   }, opt_errorCallback )
 }
-  
+
 /**
  * Call an Embedly endpoint.  The reply is passed to resultCallback.  If no
  * result is recieved before the timeout, then the original url parameters
@@ -99,70 +111,97 @@ embedly.Api.prototype.services_regex = function(resultCallback, opt_errorCallbac
  *     automatically be add to the params.  'urls' is required and should
  *     be an array of at least one url.
  *
- * @param {Function=} resultCallback Callback function expecting one argument 
+ * @param {Function=} resultCallback Callback function expecting one argument
  *     that is passed resulting object returned from the endpoint.  The result
  *     is an array of Objects in that match up to the params.urls in the same
  *     order that they were given.
  *
  * @param {Function=} opt_errorCallback Callback function expecting one
  *     argument.  Usually this is called on a timeout error.
- * 
+ *
  * ====FLOW====
  * Uses pro.embed.ly if 'key' is supplied, else falls back upon api.embed.ly with limited support
  */
 
 embedly.Api.prototype.call = function(endpoint, params, resultCallback, opt_errorCallback) {
   var path = this.paths[endpoint]
-  var jsonp = new goog.net.Jsonp(this.host+path)
-  jsonp.setRequestTimeout(this.timeout)
-  
-  if (!params['key'] && this['key']) {
-    params['key'] = this.key
+    , jsonp = new goog.net.Jsonp(this.host+path)
+    , self = this
+
+  if (!path) {
+    if (opt_errorCallback) {
+      opt_errorCallback('endpoint: '+endpoint+' not supported');
+    }
+    return false;
   }
-  
-  if(!params['key'] && endpoint == 'oembed') {
-    
-    this.services_regex( 
-    function(regex) {
-      return_array = new Array()
-      new_params_urls = new Array()
-      for (each in params['urls']) {
-        if(!params['urls'][each].match(regex)) { 
-          return_array.push({"url": params['urls'][each], "error_code": 401, "error_message": "This service requires an Embedly Pro account", "type": "error", "version": "1.0"})
-        } else {
-          return_array.push('valid')
-          new_params_urls.push(params['urls'][each])
-        }
-      }
-      if (new_params_urls.length > 0) {
-        params['urls'] = new_params_urls
-        this.services(
-        params, 
-        function(objs) {
-          objs.reverse()
-          for (each in return_array) {
-            if (return_array[each] == 'valid')
-              return_array[each] = objs.pop()
-          } 
-          resultCallback(return_array)
-        },
-        opt_errorCallback)
-      } else
-      resultCallback(return_array)
-    },
-    opt_errorCallback)
-    
-  } else {
+
+
+  jsonp.setRequestTimeout(self.timeout)
+
+  if (!params['key'] && self['key']) {
+    params['key'] = self.key
+  }
+
+  var _call = function(params, callback, errorCallback) {
     jsonp.send(
       params
     , function(objs) {
-        resultCallback(objs)
+        callback(objs, params['urls'])
       }
     , function(payload) {
-        if (opt_errorCallback) {
-          opt_errorCallback(payload)
+        if (errorCallback) {
+          errorCallback(payload)
         }
       }
     )
+  }
+
+  if(!params['key'] && endpoint == 'oembed') {
+    self.services_regex(
+      function(regex) {
+        var return_array = new Array()
+          , new_params_urls = new Array()
+          , old_urls = params['urls']
+        params['urls'].forEach(function(url) {
+          if(!url.match(regex)) {
+            return_array.push(
+              { "url": url
+              , "error_code": 401
+              , "error_message": "This service requires an Embedly Pro account"
+              , "type": "error"
+              , "version": "1.0"
+              }
+            )
+          } else {
+            return_array.push('valid')
+            new_params_urls.push(url)
+          }
+        })
+        self.log(return_array)
+        if (new_params_urls.length > 0) {
+          params['urls'] = new_params_urls
+          _call(
+            params
+          , function(objs) {
+              objs.reverse()
+              for (each in return_array) {
+                self.log('testing '+each)
+                if (return_array[each] == 'valid') {
+                  self.log('replacing '+each)
+                  return_array[each] = objs.pop()
+                }
+              }
+              resultCallback(return_array, old_urls)
+            }
+          , opt_errorCallback
+          )
+        } else {
+          resultCallback(return_array)
+        }
+      },
+      opt_errorCallback
+    )
+  } else {
+    _call(params, resultCallback, opt_errorCallback)
   }
 }
